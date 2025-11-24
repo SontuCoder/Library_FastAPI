@@ -20,7 +20,7 @@ redis_client = redis.Redis(
 
 def test_redis():
     try:
-        redis_client.set("test", "Success")
+        redis_client.set("test", "Success",120)
         print(f"Redis Cloud: {redis_client.get('test')}")
     except Exception as e:
         print("Redis Cloud Error:", e)

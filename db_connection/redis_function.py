@@ -5,7 +5,7 @@ import os
 load_dotenv()
 REDIS_EXPIRE = int(os.getenv("REDIS_EXPIRE", 300))
 
-def save_data_redis(email: str, otp: str, data_type:str) -> bool: #data_type = [password, otp]
+def save_data_redis(email: str, otp: str, data_type:str) -> bool: #data_type = [password, otp, refresh]
     try:
         redis_client.setex(f"{data_type}:{email}", REDIS_EXPIRE, otp)
         return True
