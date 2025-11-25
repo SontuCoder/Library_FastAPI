@@ -1,7 +1,10 @@
 from fastapi import FastAPI
-from authentication.auth_function import router as auth_router
+
 from db_connection.db_config import connect_to_mongo
 from db_connection.redis_config import test_redis
+
+from authentication.auth_function import router as auth_router
+from routers.admin_routers import router as admin_router
 
 
 app = FastAPI()
@@ -23,3 +26,4 @@ def home():
     return {"message": "FastAPI is working!"}
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(admin_router, prefix="/admin", tags=["Admin"])

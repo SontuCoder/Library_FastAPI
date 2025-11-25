@@ -254,6 +254,6 @@ async def get_current_user(request: Request,credentials: Optional[HTTPAuthorizat
     return payload
 
 
-@router.get("/dashboard")
+@router.get("/me")
 async def dashboard(user = Depends(get_current_user)):
     return {"message": "Welcome", "email": user['email'], "role":user['role']}

@@ -1,0 +1,45 @@
+✅ 1. Authentication Routes (Signup/Login/OTP/Logout)
+
+POST	/auth/signup	
+POST	/auth/verify-otp	
+POST	/auth/login	
+POST	/auth/refresh-token	
+POST	/auth/logout	
+GET	    /auth/me
+
+====================================================================
+
+✅ 2. User Routes
+
+GET	/admin/list-student
+GET	/admin/{email}	
+
+        
+✅ 3. Books Management Routes
+
+
+POST	/admin/add	
+DELETE	/admin/delete/{book_id}	
+GET	/books/all	
+GET	/books/{book_id}	
+GET	/books/search?query=	
+
+✅ 4. Issue / Return Routes
+
+POST	/issue/book	
+POST	/return/book	
+GET	/issue/history/{email}
+GET	/issued/all
+
+✅ 5. Admin Routes
+
+Admin-only access.
+
+GET	/admin/dashboard	
+GET	/admin/issued-books	
+GET	/admin/overdue-books
+
+✅ 6. Role-Based Routes
+
+GET	/student/dashboard
+GET	/protected/admin	
