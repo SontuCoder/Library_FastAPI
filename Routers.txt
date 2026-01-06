@@ -7,6 +7,9 @@ POST	/auth/refresh-token
 POST	/auth/logout	
 GET	    /auth/me
 
+✅ 3. Books Management Routes
+GET	/books/all?query=
+
 ====================================================================
 
 ✅ 2. User Routes
@@ -14,15 +17,11 @@ GET	    /auth/me
 GET	/admin/list-student
 GET	/admin/{email}	
 
-        
-✅ 3. Books Management Routes
 
-
+GET	/books/all	
 POST	/admin/add	
 DELETE	/admin/delete/{book_id}	
-GET	/books/all	
-GET	/books/{book_id}	
-GET	/books/search?query=	
+GET	/books/{book_id}
 
 ✅ 4. Issue / Return Routes
 

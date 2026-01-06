@@ -1,12 +1,12 @@
 from pydantic import BaseModel, EmailStr
-from datetime import datetime
+
 
 class SignUp(BaseModel):
     email:EmailStr
     password: str
 
 class VerifyOTP(BaseModel):
-    email:EmailStr
+    token: str
     otp:str
 
 class Login(BaseModel):

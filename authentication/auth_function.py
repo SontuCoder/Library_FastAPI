@@ -23,7 +23,8 @@ bearer_scheme = HTTPBearer(auto_error=False)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ACCESS_COOKIE_NAME = "access_token"
 REFRESH_COOKIE_NAME = "refresh_token"
-
+IS_PROD = False
+COOKIE_SAMESITE = "lax" if not IS_PROD else "strict"
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -69,7 +70,6 @@ async def signup(data: SignUp, background_task:BackgroundTasks, db = Depends(get
 @router.get("/verify-otp-token")
 async def verify_otp_token(token: str):
     try:
-        print("call")
         email = get_email_url(token)
     
         if not email:
@@ -84,44 +84,45 @@ async def verify_otp_token(token: str):
 @router.post("/verify-otp")
 async def verify_otp(data:VerifyOTP, response: Response, background_task:BackgroundTasks, db = Depends(get_db)):
     try:
-        if not data.email or not data.otp:
-            raise HTTPException(status_code=422,detail="Email and OTP are required.")
-        is_verify = verify_otp_redis(data.email, data.otp)
+        if not data.token or not data.otp:
+            raise HTTPException(status_code=422,detail="Token and OTP are required.")
+        user_email = get_email_url(data.token)
+        is_verify = verify_otp_redis(user_email, data.otp)
         if not is_verify:
             raise HTTPException(status_code=400, detail="Invalid or expired OTP")
-        password = get_saved_password(data.email)
+        password = get_saved_password(user_email)
         if not password:
             raise HTTPException(status_code=400,detail="Password expired or missing")
         
         new_user = User(
-            email=data.email,
+            email=user_email,
             password=password
         )
         await db.users.insert_one(new_user.model_dump())
-        background_task.add_task(delete_data, data.email, 'otp')
-        background_task.add_task(delete_data, data.email, 'password')
-        background_task.add_task(delete_data, data.email, 'otp_ctx')
+        background_task.add_task(delete_data, user_email, 'otp')
+        background_task.add_task(delete_data, user_email, 'password')
+        background_task.add_task(delete_data, user_email, 'otp_ctx')
 
         jti = generate_jti()              
-        session = create_session(data.email, new_user.role)     
+        session = create_session(user_email, new_user.role)     
         save_jti(jti, session)
 
-        access_token = create_access_token(data.email, new_user.role)
-        refresh_token = create_refresh_token(data.email, jti)
+        access_token = create_access_token(user_email, new_user.role)
+        refresh_token = create_refresh_token(user_email, jti)
         response.set_cookie(
             key=ACCESS_COOKIE_NAME,
             value=access_token,
             httponly=True,
-            secure=True,
-            samesite="strict",
+            secure=IS_PROD,
+            samesite=COOKIE_SAMESITE,
             max_age=60 * 15,
         )
         response.set_cookie(
             key=REFRESH_COOKIE_NAME,
             value=refresh_token,
             httponly=True,
-            secure=True,
-            samesite="strict",
+            secure=IS_PROD,
+            samesite=COOKIE_SAMESITE,
             max_age=60 * 60 * 24 * 30,
         )
 
@@ -146,6 +147,9 @@ async def login(data:Login, response: Response, db = Depends(get_db)):
         if not user:
             raise HTTPException(status_code=400,detail="User not exists.")
         
+        if not user["provider"] == "local":
+            raise HTTPException(status_code=400,detail="Use Social Authentication.")
+        
         if not verify_password(data.password, user["password"]):
             raise HTTPException(status_code=400,detail="Wrong Password")
         
@@ -160,16 +164,16 @@ async def login(data:Login, response: Response, db = Depends(get_db)):
             key=ACCESS_COOKIE_NAME,
             value=access_token,
             httponly=True,
-            secure=True,
-            samesite="strict",
+            secure=IS_PROD,
+            samesite=COOKIE_SAMESITE,
             max_age=60 * 15
         )
         response.set_cookie(
             key=REFRESH_COOKIE_NAME,
             value=refresh_token,
             httponly=True,
-            secure=True,
-            samesite="strict",
+            secure=IS_PROD,
+            samesite=COOKIE_SAMESITE,
             max_age=60 * 60 * 24 * 30
         )
 
@@ -188,7 +192,7 @@ async def login(data:Login, response: Response, db = Depends(get_db)):
 async def refresh_token(request: Request, response: Response):
     
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
-    access_token = request.cookies.get(ACCESS_COOKIE_NAME)
+    print("->", refresh_token)
     if not refresh_token:
         raise HTTPException(status_code=401, detail="refresh_token_missing")
 
@@ -205,7 +209,6 @@ async def refresh_token(request: Request, response: Response):
     if not validate_jti(old_jti, email):
         raise HTTPException(status_code=401, detail="refresh_token_revoked_or_invalid")
     
-    
     try:
         session = get_jti_session(old_jti)
         role = session["role"]
@@ -220,8 +223,8 @@ async def refresh_token(request: Request, response: Response):
         key=ACCESS_COOKIE_NAME,
         value=new_access,
         httponly=True,
-        secure=True,
-        samesite="strict",
+        secure=IS_PROD,
+        samesite=COOKIE_SAMESITE,
         max_age=60 * 15,
     )
 
@@ -229,8 +232,8 @@ async def refresh_token(request: Request, response: Response):
         key=REFRESH_COOKIE_NAME,
         value=new_refresh,
         httponly=True,
-        secure=True,
-        samesite="strict",
+        secure=IS_PROD,
+        samesite=COOKIE_SAMESITE,
         max_age=30 * 24 * 60 * 60,
     )
 
@@ -269,6 +272,8 @@ async def get_current_user(request: Request,credentials: Optional[HTTPAuthorizat
     try:
         payload = verify_access_token(token)
     except Exception as e:
+        print(f"Token verification failed: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=401, detail=str(e))
 
     email = payload.get("email")    
@@ -281,7 +286,7 @@ async def get_current_user(request: Request,credentials: Optional[HTTPAuthorizat
 
 @router.get("/me")
 async def dashboard(user = Depends(get_current_user)):
-    return {"message": "Welcome", "email": user['email'], "role":user['role']}
+    return { "status":"success", "message": "Welcome", "email": user['email'], "role":user['role']}
 
 '''
 ===========================================
@@ -344,7 +349,7 @@ async def google_auth(code : str, db = Depends(get_db)):
         refresh_token = create_refresh_token(email, jti)
 
         redirect = RedirectResponse(
-            url="http://localhost:5173/dashboard?status=true",
+            url="http://127.0.0.1:5173/dashboard",
             status_code=302
         )
         
@@ -352,16 +357,16 @@ async def google_auth(code : str, db = Depends(get_db)):
             key=ACCESS_COOKIE_NAME,
             value=access_token,
             httponly=True,
-            secure=False,
-            samesite="lax",
+            secure=IS_PROD,
+            samesite=COOKIE_SAMESITE,
             max_age=60 * 15,
         )
         redirect.set_cookie(
             key=REFRESH_COOKIE_NAME,
             value=refresh_token,
             httponly=True,
-            secure=False,
-            samesite="lax",
+            secure=IS_PROD,
+            samesite=COOKIE_SAMESITE,
             max_age=60 * 60 * 24 * 30,
         )
         
@@ -455,7 +460,7 @@ async def github_auth(code : str, db = Depends(get_db)):
 
         # 6️⃣ Set cookies + redirect
         redirect = RedirectResponse(
-            url="http://localhost:5173/dashboard?status=true",
+            url="http://127.0.0.1:5173/dashboard",
             status_code=302
         )
 
@@ -463,8 +468,8 @@ async def github_auth(code : str, db = Depends(get_db)):
             key=ACCESS_COOKIE_NAME,
             value=access_token,
             httponly=True,
-            secure=False,   # True in production
-            samesite="lax",
+            secure=IS_PROD,   # True in production
+            samesite=COOKIE_SAMESITE,
             max_age=60 * 15,
         )
 
@@ -472,8 +477,8 @@ async def github_auth(code : str, db = Depends(get_db)):
             key=REFRESH_COOKIE_NAME,
             value=refresh_token,
             httponly=True,
-            secure=False,   # True in production
-            samesite="lax",
+            secure=IS_PROD,   # True in production
+            samesite=COOKIE_SAMESITE,
             max_age=60 * 60 * 24 * 30,
         )
         
