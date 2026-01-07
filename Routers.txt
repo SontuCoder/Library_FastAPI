@@ -1,44 +1,43 @@
-✅ 1. Authentication Routes (Signup/Login/OTP/Logout)
+🚀 1. Authentication Routes (Signup/Login/OTP/Logout)
 
 POST	/auth/signup	
+GET     /auth/verify-otp-token
 POST	/auth/verify-otp	
 POST	/auth/login	
 POST	/auth/refresh-token	
-POST	/auth/logout	
+POST	/auth/logout
 GET	    /auth/me
+GET     /auth/google/callback
+GET     /auth/github/callback
 
-✅ 3. Books Management Routes
-GET	/books/all?query=
+
+GET	    /books/all?query=
+GET     /boook/details
+
+
+GET	    /admin/list-student
+POST	/admin/add-book
+DELETE  /admin/delete-book
+GET     /admin/admin-dashboard
+GET     /admin/list-books-requested
+GET     /admin/approve-book-request
+GET	    /admin/issued-books	
+
+
+POST    /student/book-request
+GET     /student/list-reequests
+GET     /student/issued-books
 
 ====================================================================
 
-✅ 2. User Routes
 
-GET	/admin/list-student
-GET	/admin/{email}	
-
-
-GET	/books/all	
-POST	/admin/add	
-DELETE	/admin/delete/{book_id}	
-GET	/books/{book_id}
-
-✅ 4. Issue / Return Routes
-
-POST	/issue/book	
-POST	/return/book	
-GET	/issue/history/{email}
-GET	/issued/all
-
-✅ 5. Admin Routes
-
-Admin-only access.
-
-GET	/admin/dashboard	
-GET	/admin/issued-books	
-GET	/admin/overdue-books
-
-✅ 6. Role-Based Routes
-
-GET	/student/dashboard
-GET	/protected/admin	
+GET    	/student/dashboard
+POST    /student/delete-request
+POST    /admin/book-details-edit
+POST    /student/book-return-request
+POST    /admin/approve-book-return-request
+POST    /student/book-renew-request
+POST    /admin/approve-book-renew-request
+GET     /admin/student-details
+GET     /admin/get-all-admins
+GET     /admin/get-admin-details

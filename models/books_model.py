@@ -3,11 +3,25 @@ from datetime import datetime
 from typing import List, Optional
 from enum import Enum
 
+class BookRequest_Status(str, Enum):
+    requested = "requested"
+    approved = "approved"
+    rejected = "rejected"
+
 class IssuedBook(BaseModel):
     email: EmailStr
     book_id: str
     issue_date: datetime
     return_date: datetime
+    request_date: datetime = datetime.utcnow()
+    status: BookRequest_Status = BookRequest_Status.requested
+
+class request_Book(BaseModel):
+    book_id: str
+
+class approve_Reject_Book_Request(BaseModel):
+    request_id: str
+    action: str
 
 
 class BookCategori(str, Enum):

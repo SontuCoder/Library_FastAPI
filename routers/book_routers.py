@@ -82,7 +82,35 @@ async def get_all_books(
                 "total books":len(books), 
                 "data": books
             }
-    except:
+    except HTTPException:
+        raise
+    except Exception:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="An error occurred while fetching books")
     
+
+@router.get("/details/{book_id}")
+async def get_book_details(book_id: str, is_user_valid = Depends(valid_user_check), db=Depends(get_db)):
+    try:
+        if not is_user_valid:
+            raise HTTPException(status_code=403, detail="Access forbidden: Invalid user role")
+        
+        if not ObjectId.is_valid(book_id):
+            raise HTTPException(status_code=400, detail="Invalid book ID")
+        
+        book = await db["books"].find_one({"_id": ObjectId(book_id)})
+        
+        if not book:
+            raise HTTPException(status_code=404, detail="Book not found")
+        
+        return {
+            "status": "success",
+            "data": serialize_book(book)
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="An error occurred while fetching book details")
+    
+
