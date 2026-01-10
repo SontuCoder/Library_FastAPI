@@ -9,6 +9,7 @@ POST	/auth/logout
 GET	    /auth/me
 GET     /auth/google/callback
 GET     /auth/github/callback
+GET     /auth/profile
 
 
 GET	    /books/all?query=
@@ -27,17 +28,22 @@ GET	    /admin/issued-books
 POST    /student/book-request
 GET     /student/list-reequests
 GET     /student/issued-books
+POST    /student/delete-issued-request
+POST    /student/book-return-request
+GET     /student/list-return-request
+POST    /student/delete-return-request
+POST    /student/book-renew-request
+POST    /student/delete-renew-request
+GET    	/student/dashboard
 
 ====================================================================
 
 
-GET    	/student/dashboard
-POST    /student/delete-request
 POST    /admin/book-details-edit
-POST    /student/book-return-request
 POST    /admin/approve-book-return-request
-POST    /student/book-renew-request
 POST    /admin/approve-book-renew-request
 GET     /admin/student-details
 GET     /admin/get-all-admins
 GET     /admin/get-admin-details
+POST    /auth/edit-profile
+

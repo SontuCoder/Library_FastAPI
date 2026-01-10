@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 import traceback
 from bson import ObjectId
+from datetime import datetime, timedelta
+
 
 from authentication.auth_function import get_current_user
 from db_connection.db_provider import get_db
@@ -414,6 +416,170 @@ async def issued_books(is_admin = Depends(admin_check), db = Depends(get_db)):
         print(e)
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal Server Error")
+
+
+@router.post("/book-details-edit")
+async def book_details_edit(book_data: Change_Book_Class, is_admin = Depends(admin_check), db = Depends(get_db)):
+    if not is_admin:
+        raise HTTPException(status_code=403, detail="Access deny")
+    try:
+        if not book_data.id:
+            raise HTTPException(status_code=400, detail="Book ID is required")
+        
+        existing_book = await db.books.find_one({"_id": ObjectId(book_data.id)})
+        if not existing_book:
+            raise HTTPException(status_code=400, detail="Book doesn't found.")
+        
+        update_data = {k: v for k, v in book_data.model_dump().items() if v is not None and k != "id"}
+
+        if "category" in update_data:
+            update_data["category"] = [cat.value for cat in update_data["category"]]
+
+        await db.books.update_one(
+            {"_id": existing_book["_id"]},
+            {"$set": update_data}
+        )
+
+        return {
+            "status": "success",
+            "message": "Book details updated successfully"
+        }
+    
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Server Error")
+
+@router.get("/list-books-renew-requested")
+async def list_books_renew_requested( is_admin = Depends(admin_check), db = Depends(get_db)):
+    try:
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Access deny")
+        result = []
+        issued_books = await db.issued_books.find({"status":"renew_requested"}).to_list(None)
+        if not issued_books:
+            return {"total_requests": len(result), "requests": [], "message":"Successfull"} 
+        book_ids = list({record["book_id"] for record in issued_books})
+        books = await db.books.find({"_id": {"$in": book_ids}}).to_list(None)
+        book_dict = {book["_id"]: book for book in books}
+        for issued in issued_books:
+            book_info = book_dict.get(issued["book_id"])
+            if book_info:
+                result.append({
+                    "id": str(issued.get("_id")),
+                    "student_email": issued.get("email"),
+                    "book_title": book_info.get("title"),
+                    "book_author": book_info.get("author"),
+                    "issue_date": issued.get("issue_date"),
+                    "return_date": issued.get("return_date"),
+                    "request_date": issued.get("renew_request_date"),
+                    "status": issued.get("status")
+                })
+
+        return {"request_details": result, "message":"Successfull"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Server Error")
+
+@router.post("/approve-book-renew-request")
+async def approve_book_renew_request(data:approve_Reject_Book_Request, is_admin = Depends(admin_check), db = Depends(get_db)):
+    try:
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Access deny")
+        
+        if not ObjectId.is_valid(data.request_id):
+            raise HTTPException(status_code=400, detail="Invalid request ID")
+
+        issued_request = await db.issued_books.find_one({"_id": ObjectId(data.request_id), "status": "renew_requested"})
+
+        if not issued_request:
+            raise HTTPException(status_code=400, detail="Request not found")
+        
+        if data.action != "renewed" and data.action != "renew_rejected":
+            raise HTTPException(status_code=400, detail="Action must be either 'renewed' or 'renew_rejected'")
+        
+        if data.action == "renew_rejected":
+            await db.issued_books.update_one(
+                {"_id": issued_request["_id"]},
+                {
+                    "$set": {
+                        "status": "renew_rejected",
+                    }
+                }
+            )
+            return {
+                "status": "success",
+                "message": "Book renew request rejected successfully"
+            }
+        
+        new_return_date = issued_request["return_date"] + timedelta(days=3)
+
+        await db.issued_books.update_one(
+            {"_id": issued_request["_id"]},
+            {
+                "$set": {
+                    "status": "renewed",
+                    "return_date": new_return_date
+                }
+            }
+        )
+
+        return {
+            "status": "success",
+            "message": "Book renew request approved successfully"
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.get("/list-books-return-requested")
+async def list_books_return_requested(is_admin = Depends(admin_check), db = Depends(get_db)):
+    try:
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Access Deny")
+        
+        result =[]
+        return_reqs = await db.issued_books.find({"status":"return_requested"}).to_list(None)
+
+        if not return_reqs:
+            return {"total_requests": len(result), "requests": [], "message":"Successfull"}
+        book_ids = list({record["book_id"] for record in return_reqs})
+        books = await db.books.find({"_id": {"$in": book_ids}}).to_list(None)
+        book_dict = {book["_id"]: book for book in books}
+        for req in return_reqs:
+            book_info = book_dict.get(req["book_id"])
+            if book_info:
+                result.append({
+                    "id": str(req.get("_id")),
+                    "student_email": req.get("email"),
+                    "book_title": book_info.get("title"),
+                    "book_author": book_info.get("author"),
+                    "issue_date": req.get("issue_date"),
+                    "return_date": req.get("return_date"),
+                    "request_date": req.get("return_request_date"),
+                    "status": req.get("status")
+                })  
+
+        return { "status": "success", "result": result, "message": "Return requests fetch successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    
 
 
 

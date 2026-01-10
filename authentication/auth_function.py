@@ -490,3 +490,34 @@ async def github_auth(code : str, db = Depends(get_db)):
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+'''
+===========================================
+=========== Get Profile ===================
+===========================================
+'''
+
+@router.get("/profile")
+async def get_profile(user = Depends(get_current_user), db = Depends(get_db)):
+    try:
+        email = user['email']
+        role = user['role']
+        if role not in ['student', 'admin']:
+            raise HTTPException(status_code=403, detail="Unauthorized role")
+        if role == 'student':
+            from routers.student_routers import student_profile
+            return await student_profile(email, db)
+        else:
+            # from routers.admin_routers import admin_profile
+            # await admin_profile(email, db)
+            return None
+    
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Server Error")
+
