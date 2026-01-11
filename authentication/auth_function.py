@@ -192,7 +192,6 @@ async def login(data:Login, response: Response, db = Depends(get_db)):
 async def refresh_token(request: Request, response: Response):
     
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
-    print("->", refresh_token)
     if not refresh_token:
         raise HTTPException(status_code=401, detail="refresh_token_missing")
 

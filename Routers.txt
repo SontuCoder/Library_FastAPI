@@ -23,6 +23,10 @@ GET     /admin/admin-dashboard
 GET     /admin/list-books-requested
 GET     /admin/approve-book-request
 GET	    /admin/issued-books	
+POST    /admin/book-details-edit
+POST    /admin/approve-book-renew-request
+POST    /admin/approve-book-return-request
+GET     /admin/student-details
 
 
 POST    /student/book-request
@@ -36,13 +40,10 @@ POST    /student/book-renew-request
 POST    /student/delete-renew-request
 GET    	/student/dashboard
 
+
 ====================================================================
 
 
-POST    /admin/book-details-edit
-POST    /admin/approve-book-return-request
-POST    /admin/approve-book-renew-request
-GET     /admin/student-details
 GET     /admin/get-all-admins
 GET     /admin/get-admin-details
 POST    /auth/edit-profile

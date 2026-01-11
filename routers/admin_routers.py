@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 import traceback
 from bson import ObjectId
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 from authentication.auth_function import get_current_user
 from db_connection.db_provider import get_db
-from models.books_model import Books, Delete_book, approve_Reject_Book_Request
+from models.books_model import Books, Delete_book, approve_Reject_Book_Request, Change_Book_Class
 
 router = APIRouter()
 
@@ -581,5 +581,112 @@ async def list_books_return_requested(is_admin = Depends(admin_check), db = Depe
         raise HTTPException(status_code=500, detail="Internal Server Error")
     
 
+@router.post("/approve-book-return-request/{request_id}")
+async def approve_book_return_request(
+    request_id:str,
+    is_admin = Depends(admin_check),
+    db = Depends(get_db)
+):
+    try:
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Access Deny")
+        
+        if not ObjectId.is_valid(request_id):
+            raise HTTPException(status_code=400, detail="Invalid request ID")
 
+        issued_request = await db.issued_books.find_one({"_id": ObjectId(request_id), "status": "return_requested"})
 
+        if not issued_request:
+            raise HTTPException(status_code=400, detail="Request not found")
+        book = await db.books.find_one( {"_id": ObjectId(issued_request["book_id"])})
+
+        await db.books.update_one(
+            {"_id": issued_request["book_id"]},
+            {"$inc": {"available_copies": 1}}
+        )
+        
+        await db.issued_books.update_one(
+            {"_id": issued_request["_id"]},
+            {
+                "$set": {
+                    "status": "returned",
+                    "return_date": datetime.now(timezone.utc),
+                    "previous_status":None
+                }
+            }
+        )
+        
+
+        return { "status": "success", "message": "Return requests approve successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.get("/student-details/{stu_id}")
+async def student_details(
+    stu_id: str,
+    _=Depends(admin_check),
+    db=Depends(get_db)
+):
+    try:
+        if not ObjectId.is_valid(stu_id):
+            raise HTTPException(status_code=400, detail="Invalid student ID")
+
+        student = await db.users.find_one({"_id": ObjectId(stu_id)})
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+
+        pipeline = [
+            {
+                "$match": {"email": student["email"]}
+            },
+            {
+            "$addFields": {
+                "book_id": { "$toObjectId": "$book_id" }
+            }
+            },
+            {
+                "$lookup": {
+                    "from": "books",
+                    "localField": "book_id",
+                    "foreignField": "_id",
+                    "as": "book"
+                }
+            },
+            {"$unwind": "$book"},
+            {
+                "$project": {
+                    "_id": 0,
+                    "status": 1,
+                    "issue_date": 1,
+                    "return_date": 1,
+                    "book_name": "$book.title",
+                    "author": "$book.author",
+                    "edition": "$book.edition",
+                    "category": "$book.category"
+                }
+            }
+        ]
+
+        issued_books = await db.issued_books.aggregate(pipeline).to_list(length=None)
+
+        return {
+            "status": "success",
+            "data": {
+                "stu_email": student["email"],
+                "stu_name": student.get("name"),
+                "provider": student.get("provider"),
+                "books": issued_books
+            },
+            "message": "Student details fetched successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal Server Error")

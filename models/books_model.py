@@ -38,6 +38,13 @@ class BookCategori(str, Enum):
     literature = "literature"
     others = "others"
 
+class Change_Book_Class(BaseModel):
+    title: str
+    author: str
+    description: str
+    edition: int
+    category: List[BookCategori] = [BookCategori.others]
+
 
 class Books(BaseModel):
     title: str
