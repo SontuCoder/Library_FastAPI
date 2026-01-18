@@ -610,6 +610,45 @@ async def student_profile(
         raise HTTPException(status_code=500, detail="Internal Server Error")
     
 
+async def student_profile_update(
+    email: str,
+    data,
+    db
+):
+    try:
+        if not email:
+            raise HTTPException(status_code=400, detail="Email missing")
+        
+        user = await db.users.find_one({"email": email})
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        update_data = {}
+        if data.name:
+            update_data["name"] = data.name
+
+        if update_data:
+            await db.users.update_one(
+                {"email": email},
+                {"$set": update_data}
+            )
+
+        return {
+            "status": "success",
+            "message": "Profile updated successfully"
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+
 
 
 

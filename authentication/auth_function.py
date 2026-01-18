@@ -11,7 +11,7 @@ from google.auth.transport import requests as google_requests
 
 from db_connection.db_provider import get_db
 from models.auth_model import SignUp, VerifyOTP, Login
-from models.user_model import User
+from models.user_model import User, Profile_Update
 from authentication.send_mail import generate_otp, send_mail_fast
 from db_connection.redis_function import save_data_redis, verify_otp_redis, get_saved_password, delete_data
 from utility.jwt_helper import create_access_token, create_refresh_token, verify_access_token, verify_refresh_token
@@ -508,9 +508,8 @@ async def get_profile(user = Depends(get_current_user), db = Depends(get_db)):
             from routers.student_routers import student_profile
             return await student_profile(email, db)
         else:
-            # from routers.admin_routers import admin_profile
-            # await admin_profile(email, db)
-            return None
+            from routers.admin_routers import admin_profile
+            return await admin_profile(email, db)
     
     except HTTPException:
         raise
@@ -520,3 +519,25 @@ async def get_profile(user = Depends(get_current_user), db = Depends(get_db)):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal Server Error")
 
+
+@router.put("/edit-profile")
+async def edit_profile(data : Profile_Update, user = Depends(get_current_user), db = Depends(get_db)):
+    try:
+        email = user['email']
+        role = user['role']
+        if role not in ['student', 'admin']:
+            raise HTTPException(status_code=403, detail="Unauthorized role")
+        if role == 'student':
+            from routers.student_routers import student_profile_update
+            return await student_profile_update(email, data, db)
+        else:
+            from routers.admin_routers import admin_profile_update
+            return await admin_profile_update(email, data,  db)
+    
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal Server Error")

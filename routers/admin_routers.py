@@ -690,3 +690,88 @@ async def student_details(
     except Exception:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.get("/get-all-admins")
+async def get_all_admins(
+    is_admin = Depends(admin_check),
+    db = Depends(get_db)
+):
+    try:
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Access Deny")
+        
+        admins = await db.users.find({"role":"admin"}).to_list(None)
+
+        result = []
+        for admin in admins:
+            result.append({
+                "id": str(admin["_id"]),
+                "name": admin.get("name"),
+                "email": admin.get("email"),
+                "provider": admin.get("provider"),
+                "created_at": admin.get("created_at")
+            })
+
+        return {
+            "status": "success",
+            "admins": result,
+            "message": "Admins fetched successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    
+
+async def admin_profile(email: str, db):
+    try:
+        admin = await db.users.find_one({"email": email, "role":"admin"})
+        if not admin:
+            raise HTTPException(status_code=404, detail="Admin not found")
+
+        return {
+            "status": "success",
+            "data": {
+                "name": admin.get("name"),
+                "email": admin.get("email"),
+                "provider": admin.get("provider"),
+                "created_at": admin.get("created_at")
+            },
+            "message": "Admin profile fetched successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    
+
+async def admin_profile_update(email: str, data, db):
+    try:
+        admin = await db.users.find_one({"email": email, "role":"admin"})
+        if not admin:
+            raise HTTPException(status_code=404, detail="Admin not found")
+
+        update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+
+        if update_data:
+            await db.users.update_one(
+                {"_id": admin["_id"]},
+                {"$set": update_data}
+            )
+
+        return {
+            "status": "success",
+            "message": "Admin profile updated successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    
