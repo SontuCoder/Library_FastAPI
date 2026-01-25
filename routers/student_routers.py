@@ -487,7 +487,7 @@ async def delete_renew_request(issued_id: str,
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@router.get("/dashboard")
+@router.get("/student-dashboard")
 async def student_dashboard(
     is_student=Depends(student_check),
     user=Depends(get_current_user),
@@ -508,13 +508,11 @@ async def student_dashboard(
 
         return {
             "status": "success",
-            "data": {
-                "total_books": books_details["total_books"],
-                "total_students": student_details,
-                "popular_books": popular_books,
-                "total_issued_books": books_details["total_issued_books"],
-                "books_percentage_change": books_details["books_percentage_change"],
-            },
+            "total_books": books_details["total_books"],
+            "total_students": student_details,
+            "popular_books": popular_books,
+            "total_issued_books": books_details["total_issued_books"],
+            "books_percentage_change": books_details["books_percentage_change"],
             "message": "Dashboard data fetched successfully"
         }
 

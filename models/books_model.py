@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from enum import Enum
 
@@ -54,7 +54,7 @@ class Books(BaseModel):
     quantity : int
     available : Optional[int] = None
     category: List[BookCategori] = [BookCategori.others]
-    added_at: datetime = datetime.utcnow()
+    added_at: datetime = datetime.now(timezone.utc)
 
 class Delete_book(BaseModel):
     id:str

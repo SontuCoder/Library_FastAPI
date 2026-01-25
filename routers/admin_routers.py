@@ -77,7 +77,7 @@ async def add_book(book_data: Books,is_admin = Depends(admin_check), db = Depend
         new_book_dict = book_data.model_dump()
         new_book_dict["available"] = book_data.quantity  # set available initially
 
-        new_book_dict["added_at"] = new_book_dict["added_at"].isoformat()
+        new_book_dict["added_at"] = datetime.utcnow()
 
         new_book_dict["category"] = [cat.value for cat in new_book_dict["category"]]
 
@@ -142,7 +142,7 @@ async def delete_book(book_data: Delete_book, is_admin = Depends(admin_check), d
         print(e)
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal Server Error")
-    
+
 
 
 async def fetch_books_data(db):
@@ -173,6 +173,7 @@ async def fetch_books_data(db):
                 "$lt": start_current_month
             }
         })
+        print(current_month_books, last_month_books)
 
         percentage_change = 0
         if last_month_books == 0:
@@ -183,8 +184,9 @@ async def fetch_books_data(db):
                 2
             )
         
-        total_issued_books = await db.issued_books.count_documents({})
+        total_issued_books = await db.issued_books.count_documents({"status":{"$in": ["renew_rejected", "renew_requested", "return_requested", "approved", "renewed"]}})
         overdue_issued_books = await db.issued_books.count_documents({
+            "status":{"$in": ["renew_rejected", "renew_requested", "return_requested", "approved", "renewed"]},
             "return_date": {"$lt": now}
         })
 
@@ -214,6 +216,11 @@ async def fetch_popular_books(db, limit: int = 5):
     try:
         pipeline = [
             {
+            "$match": {
+                "status": {"$in": ["approved", "renewed", "requested"]}
+                }
+            },
+            {
                 "$group": {
                     "_id": "$book_id",
                     "issued_count": {"$sum": 1}
@@ -242,7 +249,7 @@ async def fetch_popular_books(db, limit: int = 5):
                     "name": "$book.title",
                     "author": "$book.author",
                     "edition": "$book.edition",
-                    "issued_count": 1
+                    "added_at":"$book.added_at"
                 }
             }
         ]
@@ -602,7 +609,7 @@ async def approve_book_return_request(
 
         await db.books.update_one(
             {"_id": issued_request["book_id"]},
-            {"$inc": {"available_copies": 1}}
+            {"$inc": {"available": 1}}
         )
         
         await db.issued_books.update_one(
