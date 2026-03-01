@@ -19,7 +19,7 @@ def serialize_book(book: dict) -> dict:
 @router.get("/all")
 async def get_all_books( 
     cursor: Optional[str] = Query(None),
-    limit: int = Query(20, le=50),
+    limit: int = Query(100, le=150),
     book_type: Optional[List[str]] = Query(None),
     book_name: Optional[str] = None,
     book_author: Optional[str] = None,
@@ -30,8 +30,6 @@ async def get_all_books(
     try:
         if not await valid_user_check(user):
             raise HTTPException(status_code=403, detail="Access forbidden: Invalid user role")
-        
-        
         query = {}
     
         # 🔹 Cursor pagination
@@ -79,7 +77,7 @@ async def get_all_books(
                 },
                 "nextCursor": next_cursor,
                 "hasMore": len(books) == limit,
-                "total books":len(books), 
+                "total_books":len(books), 
                 "data": books
             }
     except HTTPException:

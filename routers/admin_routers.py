@@ -13,41 +13,38 @@ router = APIRouter()
 async def admin_check(user =  Depends(get_current_user)) -> bool:
     return user['role'] == 'admin' if user['role'] else False
 
+def serialize_doc(doc):
+    return {
+        key: str(value) if isinstance(value, ObjectId) else value
+        for key, value in doc.items()
+    }
 
 @router.get("/list-student")
-async def list_student(is_admin =Depends(admin_check), db = Depends(get_db)):
+async def list_student(is_admin=Depends(admin_check), db=Depends(get_db)):
     if not is_admin:
         raise HTTPException(status_code=401, detail="Access deny")
-    result = []
     try:
-        issued = await db.issued_books.find({}).to_list(None)
-
-        if not issued:
-            return {"total_students": len(result), "students": [], "message":"Successfull"}
-    
-        emails = list({record["email"] for record in issued})
-    
-        students = await db.users.find({"email": {"$in": emails}, "role":"student"}).to_list(None)
-    
+        result = []
+        students = await db.users.find({"role": "student"}).to_list(None)
         for student in students:
-            student_issues = [
-                item for item in issued if item["email"] == student["email"]
-            ]
+            student_issues = await db.issued_books.find(
+                {"email": student["email"]}
+            ).to_list(None)
+            student_issues = [serialize_doc(doc) for doc in student_issues]
             result.append({
+                "_id": str(student["_id"]),
                 "name": student.get("name"),
                 "email": student.get("email"),
                 "issued_books": student_issues
             })
-
-        return {"total_students": len(result),"students": result, "message":"Successfull"}
-
-    except HTTPException:
-        raise
-
+        return {
+            "total_students": len(result),
+            "students": result,
+            "message": "Successful"
+        }
     except Exception as e:
         print(e)
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal Server Error")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
     
 @router.post("/add-book")
 async def add_book(book_data: Books,is_admin = Depends(admin_check), db = Depends(get_db)):
@@ -142,8 +139,6 @@ async def delete_book(book_data: Delete_book, is_admin = Depends(admin_check), d
         print(e)
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal Server Error")
-
-
 
 async def fetch_books_data(db):
     try:
@@ -344,6 +339,19 @@ async def approve_book_request(data: approve_Reject_Book_Request, is_admin = Dep
 
         if issued_request["status"] != "requested":
             raise HTTPException(status_code=400, detail="Request is not in a valid state for approval")
+        if data.action == 'rejected':
+            await db.issued_books.update_one(
+                {"_id": issued_request["_id"]},
+                {
+                    "$set": {
+                        "status": "rejected",
+                    }
+                }
+            )
+            return {
+                "status": "success",
+                "message": "Book request rejected successfully"
+            }
 
         book = await db.books.find_one({"_id": issued_request["book_id"]})
 
@@ -406,6 +414,7 @@ async def issued_books(is_admin = Depends(admin_check), db = Depends(get_db)):
             if book_info:
                 result.append({
                     "id": str(issued.get("_id")),
+                    "book_id": str(issued.get("book_id")),
                     "student_email": issued.get("email"),
                     "book_title": book_info.get("title"),
                     "book_author": book_info.get("author"),
@@ -428,7 +437,7 @@ async def issued_books(is_admin = Depends(admin_check), db = Depends(get_db)):
 @router.post("/book-details-edit")
 async def book_details_edit(book_data: Change_Book_Class, is_admin = Depends(admin_check), db = Depends(get_db)):
     if not is_admin:
-        raise HTTPException(status_code=403, detail="Access deny")
+        raise HTTPException(status_code=401, detail="Access deny")
     try:
         if not book_data.id:
             raise HTTPException(status_code=400, detail="Book ID is required")
@@ -464,7 +473,7 @@ async def book_details_edit(book_data: Change_Book_Class, is_admin = Depends(adm
 async def list_books_renew_requested( is_admin = Depends(admin_check), db = Depends(get_db)):
     try:
         if not is_admin:
-            raise HTTPException(status_code=403, detail="Access deny")
+            raise HTTPException(status_code=401, detail="Access deny")
         result = []
         issued_books = await db.issued_books.find({"status":"renew_requested"}).to_list(None)
         if not issued_books:
@@ -498,7 +507,7 @@ async def list_books_renew_requested( is_admin = Depends(admin_check), db = Depe
 async def approve_book_renew_request(data:approve_Reject_Book_Request, is_admin = Depends(admin_check), db = Depends(get_db)):
     try:
         if not is_admin:
-            raise HTTPException(status_code=403, detail="Access deny")
+            raise HTTPException(status_code=401, detail="Access deny")
         
         if not ObjectId.is_valid(data.request_id):
             raise HTTPException(status_code=400, detail="Invalid request ID")
@@ -554,7 +563,7 @@ async def approve_book_renew_request(data:approve_Reject_Book_Request, is_admin 
 async def list_books_return_requested(is_admin = Depends(admin_check), db = Depends(get_db)):
     try:
         if not is_admin:
-            raise HTTPException(status_code=403, detail="Access Deny")
+            raise HTTPException(status_code=401, detail="Access Deny")
         
         result =[]
         return_reqs = await db.issued_books.find({"status":"return_requested"}).to_list(None)
@@ -596,7 +605,7 @@ async def approve_book_return_request(
 ):
     try:
         if not is_admin:
-            raise HTTPException(status_code=403, detail="Access Deny")
+            raise HTTPException(status_code=401, detail="Access Deny")
         
         if not ObjectId.is_valid(request_id):
             raise HTTPException(status_code=400, detail="Invalid request ID")
@@ -636,10 +645,12 @@ async def approve_book_return_request(
 @router.get("/student-details/{stu_id}")
 async def student_details(
     stu_id: str,
-    _=Depends(admin_check),
+    is_admin =Depends(admin_check),
     db=Depends(get_db)
 ):
     try:
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Access Deny")
         if not ObjectId.is_valid(stu_id):
             raise HTTPException(status_code=400, detail="Invalid student ID")
 
@@ -671,6 +682,8 @@ async def student_details(
                     "status": 1,
                     "issue_date": 1,
                     "return_date": 1,
+                    "book_id": { "$toString": "$book_id" },
+                    "request_date": 1,
                     "book_name": "$book.title",
                     "author": "$book.author",
                     "edition": "$book.edition",
@@ -705,7 +718,7 @@ async def get_all_admins(
 ):
     try:
         if not is_admin:
-            raise HTTPException(status_code=403, detail="Access Deny")
+            raise HTTPException(status_code=401, detail="Access Deny")
         
         admins = await db.users.find({"role":"admin"}).to_list(None)
 

@@ -39,6 +39,7 @@ class BookCategori(str, Enum):
     others = "others"
 
 class Change_Book_Class(BaseModel):
+    id:str
     title: str
     author: str
     description: str
